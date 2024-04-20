@@ -1,5 +1,5 @@
 use std::{
-    any::TypeId, collections::HashMap, marker::PhantomData
+    any::{type_name, TypeId}, collections::HashMap
 };
 
 use events::EventEmitter;
@@ -17,69 +17,94 @@ mod tests;
 pub mod world;
 pub use ecs_macro;
 
-pub struct SystemBuilder<T: SystemAction + 'static> {
+
+type SystemAction<T> = fn(data: &mut T, Query, &[Entity], &mut CommandBuffer, EventEmitter);
+pub struct SystemBuilder<T: Default> {
     comp_signatures: HashMap<TypeId, u32>,
     signature: u32,
     name: String,
-    action: Box<dyn SystemAction>,
-    phantom: PhantomData<T>,
+    data: T,
+    action: Option<SystemAction<T>>,
 }
 
-impl<T: SystemAction + 'static> SystemBuilder<T> {
-    pub fn new(name: &str, action: T, comp_signatures: HashMap<TypeId, u32>) -> Self {
+impl<T: Default> SystemBuilder<T> {
+    pub fn new(comp_signatures: HashMap<TypeId, u32>) -> Self {
         Self {
             comp_signatures,
             signature: 0,
-            name: name.to_owned(),
-            action: Box::new(action),
-            phantom: PhantomData,
+            name: type_name::<T>().to_owned(),
+            data: Default::default(),
+            action: None
         }
     }
 
-    pub fn with_component<C: Component + 'static>(mut self) -> Self {
+    pub fn with_system_data(&mut self, data: T) -> &mut Self {
+        self.data = data;
+        self
+    }
+
+    pub fn with_action(&mut self, action: SystemAction<T>) -> &mut Self {
+        self.action = Some(action);
+        self
+    }
+
+    pub fn with_component<C: Component + 'static>(&mut self) -> &mut Self {
         let comp_id = TypeId::of::<C>();
         let comp_sig = self.comp_signatures.get(&comp_id).unwrap();
         self.signature |= comp_sig;
         self
     }
 
-    pub fn build(self) -> System {
-        System {
+    pub fn build(self) -> impl System {
+        GameSystem {
             signature: self.signature,
             entities: Vec::new(),
-            action: self.action,
+            action: self.action.unwrap(),
+            data: self.data,
             name: self.name,
         }
     }
 }
 
-pub struct System {
+
+pub trait System {
+    fn call(&mut self, world: &World) -> CommandBuffer;
+    fn signature(&self) -> u32;
+    fn name(&self) -> &str;
+    fn add_entity(&mut self, entity: Entity);
+    fn remove_entity(&mut self, entity: &Entity);
+}
+pub struct GameSystem<T> {
     pub name: String,
     pub signature: u32,
     entities: Vec<Entity>,
-    action: Box<dyn SystemAction>,
+    data: T,
+    action: SystemAction<T>
 }
 
-impl System {
-    pub fn add_entity(&mut self, entity: Entity) {
-        self.entities.push(entity);
-    }
-
-    pub fn remove_entity(&mut self, entity: &Entity) {
-        self.entities.retain(|e| e.0 != entity.0);
-    }
-
-    pub fn active(&mut self, world: &World) -> CommandBuffer {
+impl <T> System for GameSystem<T>{
+    fn call(&mut self, world: &World) -> CommandBuffer {
         let mut buffer = CommandBuffer::new();
         let query = world.query();
         let emiter = world.emiter();
-        self.action.action(query, &self.entities, &mut buffer, emiter);
+        (self.action)(&mut self.data, query, &self.entities, &mut buffer, emiter);
         buffer
     }
-}
 
-pub trait SystemAction {
-    fn action(&mut self, query: Query, entities: &Vec<Entity>, commands: &mut CommandBuffer, emitter: EventEmitter);
-    fn to_system(self, world: &World) -> System;
-}
+    fn signature(&self) -> u32 {
+        self.signature
+    }
 
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn add_entity(&mut self, entity: Entity) {
+     self.entities.push(entity);   
+    }
+
+    fn remove_entity(&mut self, entity: &Entity) {
+        self.entities.retain(|e| e.0 != entity.0);
+    }
+
+}

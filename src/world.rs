@@ -2,8 +2,8 @@ use log::info;
 
 use crate::command_buffer::WorldCommand;
 use std::{
-    any::{type_name, Any, TypeId},
-    collections::{HashMap, HashSet},
+    any::{type_name, Any, TypeId}, 
+    collections::{HashMap, HashSet}
 };
 
 use super::{
@@ -14,11 +14,11 @@ use super::{
     query::Query,
     resources::Resources,
 };
-use super::{System, SystemAction};
+use super::System;
 
 pub struct World<'a> {
     entity_manager: EntityManager<'a>,
-    systems: HashMap<TypeId, System>,
+    systems: HashMap<TypeId, Box<dyn System>>,
     resources: Resources,
 
     entities_to_add: HashSet<Entity>,
@@ -80,12 +80,14 @@ impl<'a> World<'a> {
 
         self.systems
             .values_mut()
-            .filter(|s| (*key & s.signature) == s.signature)
+            .filter(|s| {
+                (*key & s.signature()) == s.signature()
+            })
             .for_each(|system| {
-                system.add_entity(entity);
+                system.as_mut().add_entity(entity);
                 info!(
                     "Adding entity id = {} to system {}",
-                    entity.0, system.name
+                    entity.0, system.name()
                 );
             });
     }
@@ -102,11 +104,11 @@ impl<'a> World<'a> {
         let key = self.entity_manager.get_signature(entity).unwrap();
         self.systems
             .values_mut()
-            .filter(|s| (*key & s.signature) == s.signature)
+            .filter(|s| (*key & s.signature()) == s.signature())
             .for_each(|system| {
                 info!(
                     "Removing id = {} from system {}",
-                    entity.0, system.name
+                    entity.0, system.name()
                 );
                 system.remove_entity(entity);
             });
@@ -130,10 +132,9 @@ impl<'a> World<'a> {
         self.handle_commands(cmd_buffer);
     }
 
-    pub fn add_system<T: SystemAction + 'static>(&mut self, system_action: T, update: bool) {
+    pub fn add_system<T>(&mut self, mut system: impl System + 'static, update: bool) where T: 'static {
         let system_id = TypeId::of::<T>();
-        let mut system = system_action.to_system(self);
-        let signature = system.signature.clone();
+        let signature = system.signature();
         if update {
             self.entity_manager
                 .entity_component_signatures
@@ -142,25 +143,25 @@ impl<'a> World<'a> {
                 .filter(|(_, s)| (*s & signature) == signature)
                 .for_each(|(id, _)| system.add_entity(Entity(id)));
         }
-        info!("Adding systems {}", system.name);
-        self.systems.insert(system_id, system);
+        info!("Adding systems {}", system.name());
+        self.systems.insert(system_id, Box::new(system));
         println!("systems add {:?}", self.systems.len());
     }
 
-    pub fn remove_system<T: SystemAction + 'static>(&mut self) {
+    pub fn remove_system<T: 'static>(&mut self) {
         let system_id = TypeId::of::<T>();
         if let Some(system) = self.systems.remove(&system_id) {
-               info!("Removing system {}", system.name);
+               info!("Removing system {}", system.name());
         }
     }
 
-    pub fn update_system<T: SystemAction + 'static>(&mut self) {
+    pub fn update_system<T: 'static>(&mut self) {
         let system_id = TypeId::of::<T>();
         let mut systems = std::mem::take(&mut self.systems);
         if let Some(system) = systems.get_mut(&system_id) {
-                info!("Updating system {}", system.name);
+                info!("Updating system {}", system.name());
 
-            let command_buffer = system.active(self);
+            let command_buffer = system.call(self);
             self.handle_commands(command_buffer);
         } else {
                 info!("Skipping system {} update", type_name::<T>());
@@ -182,19 +183,19 @@ impl<'a> World<'a> {
         }
     }
 
-    pub fn has_system<T: SystemAction + 'static>(&self) -> bool {
+    pub fn has_system<T: 'static>(&self) -> bool {
         let system_id = TypeId::of::<T>();
         self.systems.contains_key(&system_id)
     }
 
-    pub fn get_system<T: SystemAction + 'static>(&self) -> &System {
+    pub fn get_system<T: 'static>(&self) -> &dyn System {
         let system_id = TypeId::of::<T>();
-        self.systems.get(&system_id).unwrap()
+        self.systems.get(&system_id).unwrap().as_ref()
     }
 
-    pub fn get_system_mut<T: SystemAction + 'static>(&mut self) -> &mut System {
+    pub fn get_system_mut<T: 'static>(&mut self) -> &mut dyn System {
         let system_id = TypeId::of::<T>();
-        self.systems.get_mut(&system_id).unwrap()
+        self.systems.get_mut(&system_id).unwrap().as_mut()
     }
 
     pub fn add_resource<T: Any>(&mut self, resource: T) {
