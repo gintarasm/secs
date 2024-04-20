@@ -10,7 +10,7 @@ pub fn component_derive(input: TokenStream) -> TokenStream {
     let name = &input.ident;
 
     let expanded = quote! {
-      impl crate::components::Component for #name {
+      impl secs::components::Component for #name {
 
       }
     };
@@ -26,7 +26,7 @@ pub fn game_event_derive(input: TokenStream) -> TokenStream {
     let name = &input.ident;
 
     let expanded = quote! {
-      impl crate::events::GameEvent for #name {
+      impl secs::events::GameEvent for #name {
 
       }
     };
