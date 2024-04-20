@@ -31,6 +31,8 @@ mod resources {
         world.update();
         world.add_component(&entity3, Size(99));
 
+        world.query().entities().with_component()
+
     }
 
     #[test]

@@ -15,6 +15,7 @@ pub mod resources;
 pub mod events;
 mod tests;
 pub mod world;
+pub use ecs_macro;
 
 pub struct SystemBuilder<T: SystemAction + 'static> {
     comp_signatures: HashMap<TypeId, u32>,
