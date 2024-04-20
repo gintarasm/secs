@@ -38,17 +38,17 @@ impl<T> SystemBuilder<T> {
         }
     }
 
-    pub fn with_system_data(&mut self, data: T) -> &mut Self {
+    pub fn with_system_data(mut self, data: T) -> Self {
         self.data = Some(data);
         self
     }
 
-    pub fn with_action(&mut self, action: SystemAction<T>) -> &mut Self {
+    pub fn with_action(mut self, action: SystemAction<T>) -> Self {
         self.action = Some(action);
         self
     }
 
-    pub fn with_component<C: Component + 'static>(&mut self) -> &mut Self {
+    pub fn with_component<C: Component + 'static>(mut self) -> Self {
         let comp_id = TypeId::of::<C>();
         let comp_sig = self.comp_signatures.get(&comp_id).unwrap();
         self.signature |= comp_sig;
