@@ -19,27 +19,27 @@ pub use ecs_macro;
 
 
 type SystemAction<T> = fn(data: &mut T, Query, &[Entity], &mut CommandBuffer, EventEmitter);
-pub struct SystemBuilder<T: Default> {
+pub struct SystemBuilder<T> {
     comp_signatures: HashMap<TypeId, u32>,
     signature: u32,
     name: String,
-    data: T,
+    data: Option<T>,
     action: Option<SystemAction<T>>,
 }
 
-impl<T: Default> SystemBuilder<T> {
+impl<T> SystemBuilder<T> {
     pub fn new(comp_signatures: HashMap<TypeId, u32>) -> Self {
         Self {
             comp_signatures,
             signature: 0,
             name: type_name::<T>().to_owned(),
-            data: Default::default(),
+            data: None,
             action: None
         }
     }
 
     pub fn with_system_data(&mut self, data: T) -> &mut Self {
-        self.data = data;
+        self.data = Some(data);
         self
     }
 
@@ -60,7 +60,7 @@ impl<T: Default> SystemBuilder<T> {
             signature: self.signature,
             entities: Vec::new(),
             action: self.action.unwrap(),
-            data: self.data,
+            data: self.data.unwrap(),
             name: self.name,
         }
     }
