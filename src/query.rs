@@ -62,17 +62,6 @@ impl<'a> Query<'a> {
     }
 }
 
-// pub struct QResource<'a, T> {
-//     r: Ref<'a, Resource>,
-//     p: PhantomData<T>,
-// }
-//
-// impl<'a, T> QResource<'a, T> {
-//     pub fn get(&self) -> &'a T {
-//         self.r.get::<T>()
-//     }
-// }
-
 impl<'a> ComponentQuery<'a> {
     pub fn get<T: Component + 'static>(self) -> Ref<'a, CompPool<T>> {
         self.component_manager.get_components::<T>().unwrap()
