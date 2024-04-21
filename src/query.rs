@@ -3,11 +3,12 @@ use std::{
     cell::{Ref,  RefMut},
 };
 
+use crate::components::Component;
+
 use super::{
     components::{comp_pool::CompPool, component_manager::ComponentManager},
     entities::{entity_manager::EntityManager, Entity},
     resources::{Resource, Resources},
-    Component,
 };
 
 pub struct Query<'a> {

@@ -8,33 +8,30 @@ use crate::events::EventEmitter;
 use crate::{command_buffer::CommandBuffer, components::Component, entities::Entity, query::Query, world::World};
 
 
-type SystemAction<T> = fn(data: &mut T, Query, &[Entity], &mut CommandBuffer, EventEmitter);
-pub struct SystemBuilder<T> {
+pub trait System {
+    fn action(&mut self, query: Query, entities: &[Entity], command_buffer: &mut CommandBuffer, emitter: EventEmitter);
+}
+
+
+pub struct SystemBuilder<T: System> {
     comp_signatures: HashMap<TypeId, u32>,
     signature: u32,
     name: String,
-    data: Option<T>,
-    action: Option<SystemAction<T>>,
+    system: Option<T>,
 }
 
-impl<T> SystemBuilder<T> {
+impl<T: System> SystemBuilder<T> {
     pub fn new(comp_signatures: HashMap<TypeId, u32>) -> Self {
         Self {
             comp_signatures,
             signature: 0,
             name: type_name::<T>().to_owned(),
-            data: None,
-            action: None
+            system: None
         }
     }
 
-    pub fn with_system_data(mut self, data: T) -> Self {
-        self.data = Some(data);
-        self
-    }
-
-    pub fn with_action(mut self, action: SystemAction<T>) -> Self {
-        self.action = Some(action);
+    pub fn with_action(mut self, system: T) -> Self {
+        self.system = Some(system);
         self
     }
 
@@ -45,39 +42,37 @@ impl<T> SystemBuilder<T> {
         self
     }
 
-    pub fn build(self) -> impl System {
+    pub fn build(self) -> impl InternalSystem {
         GameSystem {
             signature: self.signature,
             entities: Vec::new(),
-            action: self.action.unwrap(),
-            data: self.data.unwrap(),
+            system: self.system.unwrap(),
             name: self.name,
         }
     }
 }
 
 
-pub trait System {
+pub trait InternalSystem {
     fn call(&mut self, world: &World) -> CommandBuffer;
     fn signature(&self) -> u32;
     fn name(&self) -> &str;
     fn add_entity(&mut self, entity: Entity);
     fn remove_entity(&mut self, entity: &Entity);
 }
-pub struct GameSystem<T> {
+pub struct GameSystem<T: System> {
     pub name: String,
     pub signature: u32,
     entities: Vec<Entity>,
-    data: T,
-    action: SystemAction<T>
+    system: T
 }
 
-impl <T> System for GameSystem<T>{
+impl <T: System> InternalSystem for GameSystem<T>{
     fn call(&mut self, world: &World) -> CommandBuffer {
         let mut buffer = CommandBuffer::new();
         let query = world.query();
         let emiter = world.emiter();
-        (self.action)(&mut self.data, query, &self.entities, &mut buffer, emiter);
+        self.system.action(query, &self.entities, &mut buffer, emiter);
         buffer
     }
 

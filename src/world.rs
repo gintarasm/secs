@@ -1,6 +1,6 @@
 use log::info;
 
-use crate::command_buffer::WorldCommand;
+use crate::{command_buffer::WorldCommand, system::InternalSystem};
 use std::{
     any::{type_name, Any, TypeId}, 
     collections::{HashMap, HashSet}
@@ -14,11 +14,10 @@ use super::{
     query::Query,
     resources::Resources,
 };
-use super::System;
 
 pub struct World<'a> {
     entity_manager: EntityManager<'a>,
-    systems: HashMap<TypeId, Box<dyn System>>,
+    systems: HashMap<TypeId, Box<dyn InternalSystem>>,
     resources: Resources,
 
     entities_to_add: HashSet<Entity>,
@@ -132,7 +131,7 @@ impl<'a> World<'a> {
         self.handle_commands(cmd_buffer);
     }
 
-    pub fn add_system<T>(&mut self, mut system: impl System + 'static, update: bool) where T: 'static {
+    pub fn add_system<T>(&mut self, mut system: impl InternalSystem + 'static, update: bool) where T: 'static {
         let system_id = TypeId::of::<T>();
         let signature = system.signature();
         if update {
@@ -188,12 +187,12 @@ impl<'a> World<'a> {
         self.systems.contains_key(&system_id)
     }
 
-    pub fn get_system<T: 'static>(&self) -> &dyn System {
+    pub fn get_system<T: 'static>(&self) -> &dyn InternalSystem {
         let system_id = TypeId::of::<T>();
         self.systems.get(&system_id).unwrap().as_ref()
     }
 
-    pub fn get_system_mut<T: 'static>(&mut self) -> &mut dyn System {
+    pub fn get_system_mut<T: 'static>(&mut self) -> &mut dyn InternalSystem {
         let system_id = TypeId::of::<T>();
         self.systems.get_mut(&system_id).unwrap().as_mut()
     }
